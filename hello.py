@@ -1,2 +1,4 @@
-y = not y
-y = [x for x in r if x is 'red']
+def pooja(x,b=10, *args):
+	print(args)
+
+pooja(b=3)

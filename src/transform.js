@@ -18,12 +18,55 @@ function ensureStatement(s) {
 	var f = s;
 	if ( !isArray(s) ) f = [f];
 	for ( var i = 0; i < f.length; ++i ) {
-		var v = s[i];
+		var v = f[i];
 		if ( isExpression(v) ) {
-			s[i] = {type: "ExpressionStatement", expression: v};
+			f[i] = {type: "ExpressionStatement", expression: v};
 		}
 	}
-	return s;
+
+	if ( isArray(s) ) return s;
+	else return f[0];
+}
+
+function ident(n) {
+	return {type: "Identifier", name: n.valueOf()};
+}
+
+function literal(v) {
+	if ( typeof v === 'object' ) v = v.valueOf();
+
+	if ( typeof v === 'number' && (1 / v !== 1 / Math.abs(v)) ) {
+		return {type: "UnaryExpression", argument: literal(-v), operator: '-' };
+	}
+
+	return {type: "Literal", value: v, raw: JSON.stringify(v)};
+}
+
+function binOp(left, op, right) {
+	return {
+		type: "BinaryExpression",
+		left: left,
+		right: right,
+		operator: op
+	};
+}
+
+function logicOp(left, op, right) {
+	return {
+		type: "LogicalExpression",
+		left: left,
+		right: right,
+		operator: op
+	};
+}
+
+function ternary(cond, a, b) {
+	return {
+		type: "ConditionalExpression",
+		test: cond,
+		consequent: a,
+		alternate: b
+	};
 }
 
 function transform(node, ctx) {
@@ -76,21 +119,16 @@ function transform(node, ctx) {
 
 function NoOp() { return {type: "EmptyStatement"}; }
 
-function makeLiteral(v) {
-	if ( typeof v === 'number' && v < 0 ) {
-		return {type: "UnaryExpression", argument: makeLiteral(-v), operator: '-' };
-	}
-	return {type: "Literal", value: v, raw: JSON.stringify(v)};
-}
+
 
 function makeVariableName(name) {
 	var parts = Array.isArray(name) ? name : name.split(/\./g);
-	if ( parts.length === 1 ) return {type: "Identifier", name: name};
+	if ( parts.length === 1 ) return ident(name);
 	var prop = parts.pop();
 	return {
 		type: "MemberExpression",
 		object: makeVariableName(parts),
-		property: {type: "Identifier", name: prop},
+		property: ident(prop),
 		computed: false
 	};
 }
@@ -99,7 +137,7 @@ function transformAttribute(node, ctx) {
 	console.log(node, ctx);
 	var n = node.attr;
 	if ( n._astname ) n = transform(n);
-	else n = {type: 'Identifier', name: n.v};
+	else n = {type: 'Identifier', name: n.valueOf()};
 
 	return {
 		type: "MemberExpression",
@@ -151,32 +189,24 @@ function transformBinOp(node, ctx) {
 		"Mod": "%",
 		"Div": "/",
 		"BitAnd": "&",
-		"BitOr": "|"
+		"BitOr": "|",
+		"LShift": "<<",
+		"RShift": ">>"
 
 	};
 
 	if ( !(node.op.name in operators) ) abort("Unknwon binary operator: " + node.op.name);
 
-	return {
-		type: "BinaryExpression",
-		left: left,
-		right: right,
-		operator: operators[node.op.name]
-	};
+	return binOp(left, operators[node.op.name], right);
 	
 }
 
 function transformBoolOp(node, ctx) {
 	var left = transform(node.left);
 	var right = transform(node.right);
-	var call = {
-		type: "BinaryExpression",
-		left: left,
-		right: right,
-		operator: '&&'
-	};
-	console.log(call);
-	return call;
+
+	//TODO: Support || as well?
+	return binOp(left, '&&', right);
 }
 
 function transformBreak(node, ctx) {
@@ -207,10 +237,43 @@ function transformCall(node, ctx) {
 		}
 	}
 
+	console.log(node);
+
+	var args = transform(node.args);
+
+	if ( node.keywords.length > 0 ) {
+		var paramsDict = {
+			type: "ObjectExpression",
+			properties: [{
+				type: "Property",
+				key: ident("__kwp"),
+				value: literal(true)
+			}]
+		};
+
+		for ( var i = 0; i < node.keywords.length; ++i ) {
+			var k = node.keywords[i];
+			console.log(k);
+			paramsDict.properties.push({
+				type: "Property",
+				key: ident(k.arg.v),
+				value: transform(k.value)
+			});
+		}
+
+		var extraArg = {
+			type: "CallExpression",
+			callee: makeVariableName('__pythonRuntime.utils.createParamsObj'),
+			arguments: [paramsDict]
+		};
+
+		args.push(extraArg);
+	}
+
 	return {
 		type: "CallExpression",
 		callee: transform(node.func),
-		arguments: transform(node.args)
+		arguments: args
 	};
 }
 
@@ -259,14 +322,7 @@ function transformCompare(node, ctx) {
 
 	var right = transform(node.comparators[0]);
 
-	var call = {
-		type: "BinaryExpression",
-		left: left,
-		right: right,
-		operator: operators[op.name]
-	};
-
-	return call;
+	return binOp(left, operators[op.name], right);
 }
 
 function transformExpr(node, ctx) {
@@ -301,7 +357,7 @@ function transformFor(node, ctx) {
 			{
 			  "type": "VariableDeclarator",
 			  "id": ident,
-			  "init": makeLiteral(0)
+			  "init": literal(0)
 			},
 			{
 			  "type": "VariableDeclarator",
@@ -310,12 +366,9 @@ function transformFor(node, ctx) {
 			}],
 			"kind": "var"
 		},
-		test: {
-			type: "BinaryExpression",
-			operator: '<',
-			left: ident,
-			right: {type: "MemberExpression", object: tident, property: {type: "Identifier", name: "length"}}
-		},
+		test: binOp(ident, '<', {
+			type: "MemberExpression", object: tident, property: {type: "Identifier", name: "length"}
+		}),
 		update: {
 			"type": "UpdateExpression",
 			"operator": "++",
@@ -327,19 +380,99 @@ function transformFor(node, ctx) {
 }
 
 function transformFunctionDef(node, ctx) {
+	var hasAnyArguments = node.args.args.length > 0 || node.args.vararg || node.args.kwarg;
+	var body = ensureStatement(transform(node.body));
+
+	if ( hasAnyArguments ) {
+		var premble = [];
+		var hasParams = createTempName('hasParams');
+		var param0 = createTempName('param0');
+		var realArgCount = createTempName('realArgCount');
+		var argLen = makeVariableName('arguments.length');
+		var argN = {type: "MemberExpression", object: ident('arguments'), property: binOp(argLen, '-', literal(1)), computed: true};
+		var argNKeywords = {type: "MemberExpression", object: argN, property: ident('keywords'), computed: false};
+
+		premble.push({
+			"type": "VariableDeclaration",
+			"declarations": [
+			{
+			  "type": "VariableDeclarator",
+			  "id": ident(hasParams),
+			  "init": logicOp(binOp(argLen, '>', literal(0)), '&&', logicOp(argN, '&&', argNKeywords))
+			}],
+			"kind":  "var"
+		});
+
+		var main = [];
+		main.push({
+			"type": "VariableDeclaration",
+			"declarations": [{
+				"type": "VariableDeclarator",
+				"id": ident(param0),
+				"init": ternary(ident(hasParams), argNKeywords, {type: "ObjectExpression", properties: []})
+			},{
+				"type": "VariableDeclarator",
+				"id": ident(realArgCount),
+				"init": binOp(argLen, '-', ternary(ident(hasParams), literal(1), literal(0)))
+			}],
+			"kind": "var"
+		});
+		console.log(node);
+		for ( var i = 0; i < node.args.args.length; ++i ) {
+			var a = node.args.args[i];
+			var didx = i - (node.args.args.length - node.args.defaults.length);
+			var def = i > 0 ? transform(node.args.defaults[didx]) : ident('undefined');
+			console.log(node.args.defaults[i]);
+			main.push({
+				type: "IfStatement",
+				test: binOp(ident(realArgCount), '<', literal(i+1)),
+				consequent: ensureStatement({
+					type: "AssignmentExpression",
+					operator: "=",
+					left: ident(a.id),
+					right: ternary(
+						binOp(literal(a.id), 'in', ident(param0)),
+						{type: "MemberExpression", object: ident(param0), property: ident(a.id), computed: false},
+						def
+					)
+				})
+			});
+		}
+
+		if ( node.args.vararg ) {
+			main.push({
+				"type": "VariableDeclaration",
+				"declarations": [{
+					"type": "VariableDeclarator",
+					"id": ident(node.args.vararg),
+					"init": {
+						type: "CallExpression",
+						callee: makeVariableName("Array.prototype.slice.call"),
+						arguments: [ident('arguments'), literal(node.args.args.length)]
+					}
+				}],
+				"kind": "var"
+			});
+		}
+
+		premble = premble.concat(main); //TODO: If we dont have defauts, we can guard this with __hasParams
+		body = premble.concat(body);
+	}
+
 	return {
 		type: "FunctionDeclaration",
 		id: {type: "Identifier", name: node.name.v},
 		params: transform(node.args.args),
-		body: {type: "BlockStatement", body: ensureStatement(transform(node.body))}
+		body: {type: "BlockStatement", body: body}
 	};
 }
 
 function transformIf(node, ctx) {
+	var body = ensureStatement(transform(node.body));
 	return {
 		type: "IfStatement",
 		test: transform(node.test),
-		consequent: {type: "BlockStatement", body: ensureStatement(transform(node.body))},
+		consequent: {type: "BlockStatement", body: body},
 		alternate: (node.orelse && node.orelse.length > 0) ? {type: "BlockStatement", body: transform(node.orelse)} : undefined 
 	};
 }
@@ -383,11 +516,11 @@ function transformModule(node, ctx) {
 function transformName(node, ctx) {
 	if ( node.id.v === 'True' ) return {type: "Literal", value: true, raw: "true"};
 	if ( node.id.v === 'False' ) return {type: "Literal", value: false, raw: "false"};
-	return {type: "Identifier", name: node.id.v};
+	return ident(node.id);
 }
 
 function transformNum(node, ctx) {
-	return makeLiteral(node.n.v);
+	return literal(node.n);
 }
 
 function transformPrint(node, ctx) {
@@ -406,7 +539,7 @@ function transformReturn(node, ctx) {
 }
 
 function transformStr(node, ctx) {
-	return makeLiteral(node.s.v);
+	return literal(node.s.valueOf());
 }
 
 function transformTuple(node, ctx) {
@@ -454,7 +587,7 @@ function transformUnaryOp(node, ctx) {
 		"Not": "!",
 	};
 
-	if ( !(node.op.name in operators) ) abort("Unknwon unary operator: " + node.op.name);
+	if ( !(node.op.name in operators) ) abort("Unknown unary operator: " + node.op.name);
 
 	return {
 		type: "UnaryExpression",
