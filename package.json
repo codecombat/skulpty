@@ -1,0 +1,16 @@
+{
+  "name": "skulpty",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "escodegen": "^1.8.0",
+    "skulpt": "git+https://github.com/skulpt/skulpt.git",
+    "webpack": "^1.13.1"
+  }
+}
