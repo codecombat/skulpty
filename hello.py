@@ -1,4 +1,1 @@
-def pooja(x,b=10, *args):
-	print(args)
-
-pooja(b=3)
+dict(x=1, y=2)
