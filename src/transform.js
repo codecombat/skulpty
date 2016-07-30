@@ -32,6 +32,15 @@ function ident(n) {
 	return {type: "Identifier", name: n.valueOf()};
 }
 
+function member(o, p) {
+	return {
+		type: "MemberExpression",
+		object: o,
+		property: p,
+		computed: false
+	};
+}
+
 function literal(v) {
 	if ( typeof v === 'object' ) v = v.valueOf();
 
@@ -70,6 +79,14 @@ function ternary(cond, a, b) {
 }
 
 function transform(node, ctx) {
+	console.log(node.lineno, node.col_offset);
+	var rng = {line: node.lineno, col: node.col_offset};
+	var result = dispatch(node, ctx);
+	result.tokenBasedRange = rng;
+	return result;
+}
+
+function dispatch(node, ctx) {
 	ctx = ctx || {};
 	if ( !node ) {
 		console.log("WAT!", new Error().stack);
@@ -127,25 +144,14 @@ function makeVariableName(name) {
 	var parts = Array.isArray(name) ? name : name.split(/\./g);
 	if ( parts.length === 1 ) return ident(name);
 	var prop = parts.pop();
-	return {
-		type: "MemberExpression",
-		object: makeVariableName(parts),
-		property: ident(prop),
-		computed: false
-	};
+	return member(makeVariableName(parts), ident(prop));
 }
 
 function transformAttribute(node, ctx) {
 	var n = node.attr;
 	if ( n._astname ) n = transform(n);
 	else n = {type: 'Identifier', name: n.valueOf()};
-
-	return {
-		type: "MemberExpression",
-		computed: false, //TODO: maybe sometimes true?
-		object: transform(node.value),
-		property: n
-	};
+	return member(transform(node.value), n);
 }
 
 function transformAugAssign(node, ctx) {
@@ -176,6 +182,19 @@ function transformBinOp(node, ctx) {
 	var left = transform(node.left);
 	var right = transform(node.right);
 
+	if ( node.op.name === 'FloorDiv' ) {
+		return {
+			type: "CallExpression",
+			callee: makeVariableName('Math.floor'),
+			arguments: [{
+				type: "BinaryExpression",
+				left: left,
+				right: right,
+				operator: '/'
+			}]
+		};
+	}
+
 	var fxOps = {
 		"Add": "__pythonRuntime.ops.add",
 		"Mult": "__pythonRuntime.ops.multiply",
@@ -198,6 +217,7 @@ function transformBinOp(node, ctx) {
 		"Div": "/",
 		"BitAnd": "&",
 		"BitOr": "|",
+		'BitXor': '^',
 		"LShift": "<<",
 		"RShift": ">>"
 
@@ -324,42 +344,78 @@ function transformCall(node, ctx) {
 
 function transformClassDef(node, ctx) {
 	var body = [];
-
+	var proto = member(ident(node.name), ident('prototype'));
 	var nctx = {
-		writeTarget: {type: "MemberExpression", object: ident(node.name), property: ident('prototype'), computed: false},
+		writeTarget: proto,
 		inClass: true
 	};
 
-	var  ctorBody = [
-		{
-			type: "VariableDeclaration",
-			kind: 'var',
-			declarations: [{
-				type: "VariableDeclarator",
-				id: ident('that'),
-				init: {type: "ThisExpression"}
-			}]
+	if ( node.bases.length > 1 ) alert("Multiple base classes not supported.");
 
-		},{
-			type: "IfStatement",
-			test: binOp(ident('that'), "instanceof", ident(node.name)),
-			consequent: {type: "BlockStatement", body: []},
-			alternate: ensureStatement({
-				type: "AssignmentExpression",
-				left: ident('that'),
-				right: {
-					type:  "NewExpression",
-					callee: ident(node.name),
-					arguments: []
-				},
-				operator: '='
-			})
-		}, {
-			type: "ReturnStatement",
-			argument: ident('that')
+	var base = (node.bases.length > 0) ? transform(node.bases[0], ctx) : undefined;
+
+	var ctorBody = [];
+	ctorBody.push({
+		type: "VariableDeclaration",
+		kind: 'var',
+		declarations: [{
+			type: "VariableDeclarator",
+			id: ident('that'),
+			init: {type: "ThisExpression"}
+		}]
+	});
+
+	ctorBody.push({
+		type: "IfStatement",
+		test: {
+			type:"UnaryExpression",
+			argument: binOp(ident('that'), "instanceof", ident(node.name)),
+			operator: "!"
+		},
+		consequent: ensureStatement({
+			type: "AssignmentExpression",
+			left: ident('that'),
+			right: {
+				type:  "CallExpression",
+				callee: makeVariableName('Object.create'),
+				arguments: [ proto ]
+			},
+			operator: '='
+		})
+	});
+
+	ctorBody.push({
+		type: "IfStatement",
+		test: {
+			type: "CallExpression",
+			callee: member(proto, ident('hasOwnProperty')),
+			arguments: [literal('__init__')]
+		},
+		consequent: {
+			type: "CallExpression",
+			callee: member(member(proto, ident('__init__')), ident('apply')),
+			arguments: [ident('that'), ident('arguments')]
 		}
+	});
 
-	];
+	if ( base ) {
+		ctorBody.push(ensureStatement({
+			type: "CallExpression",
+			callee: {
+				type: "MemberExpression",
+				object: base,
+				property: ident('apply'),
+				computed: false
+			},
+			arguments: [ident('that'), ident('arguments')]
+		}));
+	}
+
+	ctorBody.push({
+		type: "ReturnStatement",
+		argument: ident('that')
+	});
+
 
 	body.push({
 		type: "FunctionDeclaration",
@@ -367,6 +423,19 @@ function transformClassDef(node, ctx) {
 		params: [],
 		body: {type: "BlockStatement", body:ctorBody}
 	});
+
+	if ( base ) {
+		body.push({
+			type: "AssignmentExpression",
+			left: proto,
+			right: {
+				type:  "CallExpression",
+				callee: makeVariableName('Object.create'),
+				arguments: [ member(base, ident('prototype')) ]
+			},
+			operator: "="
+		});
+	}
 
 	body = body.concat(transform(node.body, nctx));
 
@@ -571,7 +640,7 @@ function transformFunctionDef(node, ctx) {
 		for ( var i = 0; i < node.args.args.length; ++i ) {
 			var a = node.args.args[i];
 			var didx = i - (node.args.args.length - node.args.defaults.length);
-			var def = i > 0 ? transform(node.args.defaults[didx]) : ident('undefined');
+			var def = didx > 0 ? transform(node.args.defaults[didx], ctx) : ident('undefined');
 
 			main.push({
 				type: "IfStatement",
