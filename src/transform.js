@@ -79,7 +79,7 @@ function ternary(cond, a, b) {
 }
 
 function transform(node, ctx) {
-	console.log(node.lineno, node.col_offset);
+	//console.log(node.lineno, node.col_offset);
 	var rng = {line: node.lineno, col: node.col_offset};
 	var result = dispatch(node, ctx);
 	result.tokenBasedRange = rng;
@@ -155,27 +155,35 @@ function transformAttribute(node, ctx) {
 }
 
 function transformAugAssign(node, ctx) {
-	console.log("TX", ctx);
-	return {
-		type: "AssignmentExpression",
-		operator: '+=',
-		left: transform(node.target),
-		right: transform(node.value)
+	//TODO: We need to not inject left into the code twice
+	//as it could have side effects.
+	var right = transform(node.value);
+	var left = transform(node.target);
+	var operators = {
+		Add: "__pythonRuntime.ops.add",
+		Mult: "__pythonRuntime.ops.multiply"
 	};
-}
 
-function transformAssign(node, ctx) {
-
-	var left = transform(node.targets[0]);
-	if ( ctx.writeTarget ) {
-		left = {type: "MemberExpression", object: ctx.writeTarget, property: left, computed: false};
-	}
 	return {
 		type: "AssignmentExpression",
 		operator: '=',
 		left: left,
-		right: transform(node.value)
+		right: {
+			type: "CallExpression",
+			callee: makeVariableName(operators[node.op.name]),
+			arguments: [left, right]
+		}
 	};
+}
+
+function transformAssign(node, ctx) {
+	var left = node.targets[0];
+	if ( ctx.writeTarget ) {
+		left = {type: "MemberExpression", object: ctx.writeTarget, property: left, computed: false};
+	}
+	var a = createTupleUnpackingAssign(left, transform(node.value), ctx);
+	if ( a.length == 1 ) return a[0];
+	return {type: "BlockStatement", body: a}; 
 }
 
 function transformBinOp(node, ctx) {
@@ -472,7 +480,7 @@ function tranformContinue(node, ctx) {
 
 function transformCompare(node, ctx) {
 	var left = transform(node.left);
-	if ( node.comparators.length !== 1 ) abort("Not implemented yet");
+	if ( node.comparators.length !== 1 ) abort("Multiple Comparators Not implemented yet");
 	var op = node.ops[0];
 	var fxOps = {
 		"In_": "in",
@@ -541,14 +549,44 @@ function transformExpr(node, ctx) {
 	};
 }
 
-function createForLoop(iident, tident, iter, target, body) {
+function createTupleUnpackingAssign(target, value, ctx) {
 
-	body.unshift({type: "ExpressionStatement", expression: {
+	if ( target._astname === 'Tuple' ) {
+		var result = [];
+		var tn = createTempName("right");
+		result.push({
+			type: "VariableDeclaration",
+			kind: "var",
+			declarations: [{
+				type: "VariableDeclarator",
+				id: ident(tn),
+				init: value
+			}]
+		});
+		for ( var i = 0; i < target.elts.length; ++i ) {
+			result.push.apply(result,createTupleUnpackingAssign(
+				target.elts[i],
+				{type: "MemberExpression", object: ident(tn), property: literal(i),  computed: true}
+			,ctx));
+		}
+		return result;
+	}
+
+	return [{type: "ExpressionStatement", expression: {
 		type: "AssignmentExpression",
 		operator: "=",
-		left: target,
-		right: {type: "MemberExpression", object: tident, property: iident, computed: true}
-	}});
+		left: target._astname ? transform(target, ctx) : target,
+		right: value
+	}}];	
+}
+
+function createForLoop(iident, tident, iter, target, body, ctx) {
+
+	body = createTupleUnpackingAssign(
+		target, 
+		{type: "MemberExpression", object: tident, property: iident, computed: true},
+		ctx
+	).concat(body);
 
 	var riter = ternary(
 		{type: "CallExpression", callee: makeVariableName("Array.isArray"), arguments:[iter]},
@@ -595,15 +633,20 @@ function transformFor(node, ctx) {
 	var iter = transform(node.iter,ctx);
 	var body = ensureStatement(transform(node.body, ctx));
 
-	return createForLoop(iident, tident, iter, transform(node.target), body);
+	return createForLoop(iident, tident, iter, node.target, body, ctx);
 }
 
 function transformFunctionDef(node, ctx) {
-	var hasAnyArguments = node.args.args.length > 0 || node.args.vararg || node.args.kwarg;
+	var args = node.args.args.slice(0);
+	if  ( ctx.inClass ) {
+		//TODO: Make sure it's named self, maybe?
+		args.shift();
+	}
+	var hasAnyArguments = args.length > 0 || node.args.vararg || node.args.kwarg;
 	var body = ensureStatement(transform(node.body));
-
+	var premble = [];
 	if ( hasAnyArguments ) {
-		var premble = [];
+		
 		var hasParams = createTempName('hasParams');
 		var param0 = createTempName('param0');
 		var realArgCount = createTempName('realArgCount');
@@ -637,10 +680,10 @@ function transformFunctionDef(node, ctx) {
 			"kind": "var"
 		});
 
-		for ( var i = 0; i < node.args.args.length; ++i ) {
+		for ( var i = 0; i < args.length; ++i ) {
 			var a = node.args.args[i];
 			var didx = i - (node.args.args.length - node.args.defaults.length);
-			var def = didx > 0 ? transform(node.args.defaults[didx], ctx) : ident('undefined');
+			var def = didx >= 0 ? transform(node.args.defaults[didx], ctx) : ident('undefined');
 
 			main.push({
 				type: "IfStatement",
@@ -667,7 +710,7 @@ function transformFunctionDef(node, ctx) {
 					"init": {
 						type: "CallExpression",
 						callee: makeVariableName("Array.prototype.slice.call"),
-						arguments: [ident('arguments'), literal(node.args.args.length)]
+						arguments: [ident('arguments'), literal(node.args.args.length), hasAnyArguments ? ident(realArgCount) : undefined]
 					}
 				}],
 				"kind": "var"
@@ -699,9 +742,25 @@ function transformFunctionDef(node, ctx) {
 		}
 
 		premble = premble.concat(main); //TODO: If we dont have defauts, we can guard this with __hasParams
-		body = premble.concat(body);
+		
+		
 	}
-	var params = transform(node.args.args, ctx);
+
+	if ( ctx.inClass ) {
+		premble.push({
+			"type": "VariableDeclaration",
+			"declarations": [{
+				"type": "VariableDeclarator",
+				"id": ident('self'),
+				"init": {type: "ThisExpression"}
+			}],
+			"kind": "var"
+		});
+	}		
+
+	body = premble.concat(body);
+
+	var params = transform(args, ctx);
 
 	if ( ctx.writeTarget ) {
 		return ensureStatement({
@@ -786,7 +845,7 @@ function transformListComp(node, ctx) {
 		arguments: [transform(node.elt)]
 	}));
 
-	body.push(createForLoop(ident(idxName), ident(iterName), ident(listName), transform(gen.target, ctx), insideBody));
+	body.push(createForLoop(ident(idxName), ident(iterName), ident(listName), gen.target, insideBody, ctx));
 
 	body.push({
 		type: "ReturnStatement",
