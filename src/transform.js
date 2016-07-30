@@ -162,21 +162,40 @@ function transformAugAssign(node, ctx) {
 	//as it could have side effects.
 	var right = transform(node.value);
 	var left = transform(node.target);
-	var operators = {
+	var fxOps = {
 		Add: "__pythonRuntime.ops.add",
 		Mult: "__pythonRuntime.ops.multiply"
 	};
 
-	return {
-		type: "AssignmentExpression",
-		operator: '=',
-		left: left,
-		right: {
-			type: "CallExpression",
-			callee: makeVariableName(operators[node.op.name]),
-			arguments: [left, right]
-		}
+	var operators = {
+		LShift: "<<=",
+		RShift: ">>=",
+		Div: "/=",
+		Mod: "%=",
+		BitOr: "|=",
+		BitAnd: "&=",
+		BitXor: "^="
 	};
+
+	if ( node.op.name in fxOps ) {
+		return {
+			type: "AssignmentExpression",
+			operator: '=',
+			left: left,
+			right: {
+				type: "CallExpression",
+				callee: makeVariableName(fxOps[node.op.name]),
+				arguments: [left, right]
+			}
+		};
+	} else {
+		return {
+			type: "AssignmentExpression",
+			operator: operators[node.op.name],
+			left: left,
+			right: right
+		};
+	}
 }
 
 function transformAssign(node, ctx) {
@@ -481,12 +500,9 @@ function tranformContinue(node, ctx) {
 	return {type: "ContinueStatement"};
 }
 
+function makeCop(left, op, right) {
 
-function transformCompare(node, ctx) {
-	var left = transform(node.left);
-	if ( node.comparators.length !== 1 ) abort("Multiple Comparators Not implemented yet");
-	var op = node.ops[0];
-	var fxOps = {
+var fxOps = {
 		"In_": "in",
 		"NotIn": "in"
 	};
@@ -495,7 +511,7 @@ function transformCompare(node, ctx) {
 		var call = {
 			type: "CallExpression",
 			callee: makeVariableName("__pythonRuntime.ops." + fxOps[op.name]),
-			arguments: [left, transform(node.comparators[0])]
+			arguments: [left, right]
 		};
 
 		if ( op.name == "NotIn" ) {
@@ -522,10 +538,28 @@ function transformCompare(node, ctx) {
 	};
 	
 	if ( !(op.name in operators) ) abort("Unsuported Compare operator: " + op.name);
-
-	var right = transform(node.comparators[0]);
-
 	return binOp(left, operators[op.name], right);
+}
+
+function transformCompare(node, ctx) {
+	var left = transform(node.left);
+	var result;
+
+	for ( var i = 0; i < node.comparators.length; ++i ) {
+		var right = transform(node.comparators[i]);
+		var cop = makeCop(left, node.ops[i], right);
+		if ( result ) {
+			result = binOp(result, '&&', cop);
+		} else {
+			result = cop;
+		}
+		left = right;
+	}
+
+	
+
+	return result;
+	
 }
 
 function transformDict(node, ctx) {

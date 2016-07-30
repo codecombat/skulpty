@@ -31,8 +31,12 @@ function rangeToLoc(x, offsets) {
 	return {line: best+2, column: x - ( best > 0 ? offsets[best] : 0) };
 }
 
+function locToRange(line, col, offsets) {
+	return (line < 2 ? 0 : offsets[line - 2]) + col;
+}
+
 function decorate(n, code, offsets) {
-	var numrange = (n.lineno < 2 ? 0 : offsets[n.lineno - 2]) + n.col_offset;
+	var numrange = locToRange(n.lineno, n.col_offset, offsets)
 
 	var range = [
 		numrange === numrange ? numrange : Infinity,
@@ -74,8 +78,21 @@ function parser(code) {
 	try {
 		var parse = Sk.parse('file.py', code);
 	} catch ( e ) {
+		/*
 		console.log("OHH NOOOOWW!");
-		throw new SyntaxError(e.toString());
+		console.log(e, e.extra);
+		console.log(JSON.stringify(e.extra.node, function(k,  o) {
+			if ( k == 'type' ) return Sk.nameForToken(o);
+			else if ( k == 'children' ) return o;
+			else if ( k ===  '' ) return o;
+			else if ( !isNaN(parseInt(k)) ) return o;
+			else return undefined;
+		}, '  '));
+		*/
+		var r = e.context[0];
+		e.pos = locToRange(r[0], r[1], lineOffsets);
+		e.loc = {line: r[0], column: r[1]};
+		throw e;
 		//console.log(Object.keys(e.constructor.prototype));
 		//console.log(e.toString());
 		//console.log(e.args.v);
