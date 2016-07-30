@@ -1,1 +1,6 @@
-for i in range(10): x = i
+x = 'global'
+class MyClass:
+	data = x
+
+c = MyClass()
+c.data

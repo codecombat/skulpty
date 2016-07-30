@@ -88,7 +88,9 @@ function transform(node, ctx) {
 }
 
 function dispatch(node, ctx) {
-	ctx = ctx || {};
+	ctx = ctx || {
+		locals: Object.create(null)
+	};
 	if ( !node ) {
 		console.log("WAT!", new Error().stack);
 		throw new Error("What?");
@@ -180,7 +182,7 @@ function transformAugAssign(node, ctx) {
 function transformAssign(node, ctx) {
 	var left = node.targets[0];
 	if ( ctx.writeTarget ) {
-		left = {type: "MemberExpression", object: ctx.writeTarget, property: left, computed: false};
+		left = {type: "MemberExpression", object: ctx.writeTarget, property: transform(left,ctx), computed: false};
 	}
 	var a = createTupleUnpackingAssign(left, transform(node.value), ctx);
 	if ( a.length == 1 ) return a[0];
@@ -356,7 +358,8 @@ function transformClassDef(node, ctx) {
 	var proto = member(ident(node.name), ident('prototype'));
 	var nctx = {
 		writeTarget: proto,
-		inClass: true
+		inClass: true,
+		locals: Object.create(null)
 	};
 
 	if ( node.bases.length > 1 ) alert("Multiple base classes not supported.");
@@ -550,6 +553,34 @@ function transformExpr(node, ctx) {
 	};
 }
 
+function assignPossiblyWithDeclaration(target, value, ctx) {
+	var left = target._astname ? transform(target, ctx) : target;
+	var varible;
+
+	if ( left.type === "Identifier" ) varible = left.name;
+
+	if ( !varible || !ctx || !ctx.locals || ctx.locals[varible] ) {
+		return {type: "ExpressionStatement", expression: {
+			type: "AssignmentExpression",
+			operator: "=",
+			left: left,
+			right: value
+		}};
+	}
+
+	ctx.locals[varible] = true;
+
+	return {
+		type: "VariableDeclaration",
+		declarations: [{
+			type: "VariableDeclarator",
+			id: left,
+			init: value
+		}],
+		kind: 'var'
+	};
+}
+
 function createTupleUnpackingAssign(target, value, ctx) {
 
 	if ( target._astname === 'Tuple' ) {
@@ -573,12 +604,7 @@ function createTupleUnpackingAssign(target, value, ctx) {
 		return result;
 	}
 
-	return [{type: "ExpressionStatement", expression: {
-		type: "AssignmentExpression",
-		operator: "=",
-		left: target._astname ? transform(target, ctx) : target,
-		right: value
-	}}];	
+	return [assignPossiblyWithDeclaration(target, value, ctx)];
 }
 
 function createForLoop(iident, tident, iter, target, body, ctx) {
@@ -644,7 +670,10 @@ function transformFunctionDef(node, ctx) {
 		args.shift();
 	}
 	var hasAnyArguments = args.length > 0 || node.args.vararg || node.args.kwarg;
-	var body = ensureStatement(transform(node.body));
+	var nctx = {
+		locals: Object.create(null)
+	};
+	var body = ensureStatement(transform(node.body, nctx));
 	var premble = [];
 	if ( hasAnyArguments ) {
 		
@@ -804,17 +833,9 @@ function transformList(node, ctx) {
 	return call;
 }
 
-function transformListComp(node, ctx) {
-	if ( node.generators.length !== 1 ) abort("Unsuported number of generators");
-	var comp = node.generators[0];
-	var gen = node.generators[0];
-
-	var listName = createTempName('list');
-	var iterName = createTempName('iter');
+function transformListComp(node, ctx) {	
 	var body = [];
 	var aggrigator = createTempName('result');
-
-	var idxName = createTempName('idx');
 
 	body.push({
 		"type": "VariableDeclaration",
@@ -832,22 +853,44 @@ function transformListComp(node, ctx) {
 
 	var insideBody = [];
 
-	for ( var i = 0; i < gen.ifs.length; ++i ) {
-		insideBody.push({
-			type: "IfStatement",
-			test: {type: "UnaryExpression", argument: transform(gen.ifs[i]), operator: "!"},
-			consequent: {type: "ContinueStatement"}
-		});
-	}
-
 	insideBody.push(ensureStatement({
 		type: "CallExpression",
 		callee: {type: "MemberExpression", object: ident(aggrigator), property: ident('push'), computed: false},
 		arguments: [transform(node.elt)]
 	}));
 
-	body.push(createForLoop(ident(idxName), ident(iterName), ident(listName), gen.target, insideBody, ctx));
+	//if ( node.generators.length !== 1 ) abort("Unsuported number of generators");
+	var gen = node.generators[0];
 
+	for ( var g = node.generators.length - 1; g >= 0; --g ) {
+		var idxName = createTempName('idx');
+		var listName = createTempName("list" + g);
+		var iterName = createTempName('iter');
+		var gen = node.generators[g];
+		for ( var i = 0; i < gen.ifs.length; ++i ) {
+			insideBody.unshift({
+				type: "IfStatement",
+				test: {type: "UnaryExpression", argument: transform(gen.ifs[i]), operator: "!"},
+				consequent: {type: "ContinueStatement"}
+			});
+		}
+
+
+
+		insideBody = [
+			{
+				type: "VariableDeclaration",
+				kind: "var",
+				declarations: [{
+					type: "VariableDeclarator",
+					id: ident(listName),
+					init: transform(gen.iter)
+				}]
+			},
+			createForLoop(ident(idxName), ident(iterName), ident(listName), gen.target, insideBody, ctx)
+		];
+	}
+	body.push.apply(body, insideBody);
 	body.push({
 		type: "ReturnStatement",
 		argument: ident(aggrigator)
@@ -855,14 +898,14 @@ function transformListComp(node, ctx) {
 
 	var expr = {
 		type: "FunctionExpression",
-		params: [{type: 'Identifier', name: listName}],
+		params: [],
 		body: {type: "BlockStatement", body: body}
 	};
 
 	return {
 		type: "CallExpression",
 		callee: expr,
-		arguments: [transform(gen.iter)]
+		arguments: []
 	};
 }
 
