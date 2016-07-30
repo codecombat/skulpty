@@ -1,2 +1,1 @@
-for ((i,i),i) in [[[1,2],5], [[3,4],6]]:
-	pass
+for i in range(10): x = i

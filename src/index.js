@@ -19,7 +19,6 @@ function display(node, depth) {
 			display(n, depth+1);
 		}
 	}
-
 }
 
 function rangeToLoc(x, offsets) {
@@ -40,7 +39,7 @@ function decorate(n, code, offsets) {
 		numrange === numrange ? numrange : -Infinity
 	];
 	
-	if ( n.value ) range[1] += n.value.length;
+	if ( n.value ) range[1] += (n.value.length-1);
 	
 
 
@@ -69,9 +68,8 @@ function parser(code) {
 	while ( true ) {
 		idx = code.indexOf("\n", idx+1);
 		if ( idx < 0 ) break;
-		lineOffsets.push(idx+1);
+		lineOffsets.push(idx);
 	}
-	lineOffsets.push(code.length);
 
 	try {
 		var parse = Sk.parse('file.py', code);

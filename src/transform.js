@@ -253,7 +253,7 @@ function transformBoolOp(node, ctx) {
 
 	var result = fvals.pop();
 	while ( fvals.length > 0 ) {
-		result = binOp(fvals.pop(), opstr, result);
+		result = logicOp(fvals.pop(), opstr, result);
 	}
 
 
