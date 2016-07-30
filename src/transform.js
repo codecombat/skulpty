@@ -80,9 +80,10 @@ function ternary(cond, a, b) {
 
 function transform(node, ctx) {
 	//console.log(node.lineno, node.col_offset);
-	var rng = {line: node.lineno, col: node.col_offset};
 	var result = dispatch(node, ctx);
-	result.tokenBasedRange = rng;
+	result.range = node.range;
+	result.loc = node.loc;
+	result.str = node.str;
 	return result;
 }
 
