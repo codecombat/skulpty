@@ -854,7 +854,7 @@ function transformIf(node, ctx) {
 		type: "IfStatement",
 		test: transform(node.test),
 		consequent: {type: "BlockStatement", body: body},
-		alternate: (node.orelse && node.orelse.length > 0) ? {type: "BlockStatement", body: transform(node.orelse)} : undefined 
+		alternate: (node.orelse && node.orelse.length > 0) ? {type: "BlockStatement", body: ensureStatement(transform(node.orelse))} : undefined 
 	};
 }
 

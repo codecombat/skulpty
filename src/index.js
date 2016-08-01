@@ -89,9 +89,14 @@ function parser(code) {
 			else return undefined;
 		}, '  '));
 		*/
-		var r = e.context[0];
-		e.pos = locToRange(r[0], r[1], lineOffsets);
-		e.loc = {line: r[0], column: r[1]};
+		if ( e.context ) {
+			var r = e.context[0];
+			if ( e.extra && e.extra.node ) decorate(e.extra.node, code, lineOffsets);
+			e.pos = locToRange(r[0], r[1], lineOffsets);
+			e.loc = {line: r[0], column: r[1]};
+			e.line = r[0];
+			e.column = r[1];
+		}
 		throw e;
 		//console.log(Object.keys(e.constructor.prototype));
 		//console.log(e.toString());
