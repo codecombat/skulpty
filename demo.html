@@ -47,7 +47,7 @@
             <li><a href="#" data-toggle="modal" data-target="#options">Options</a></li>
             <li class="active"><a href="#" ng-click="xeval()">Evaluate</a></li>
           </ul>
-          <h3 class="text-muted">Lua 2 JS</h3>
+          <h3 class="text-muted">Skulpty</h3>
         </div>
 
         <div class="row" style="padding-top: 10px">
@@ -127,8 +127,9 @@ function update($scope) {
   try {
     if ( $scope.marker ) $scope.ace.session.removeMarker($scope.marker);
     $scope.error = "";
+    localStorage['skulpty.js'] = $scope.code;
     var c = filbert.parse($scope.code, $scope.opts);
-    $scope.code2 = "(function() {\n" + escodegen.generate(c) + "\n})();";
+    $scope.code2 = "(function() {\n'use strict';\n" + escodegen.generate(c) + "\n})();";
   } catch ( e ) {
     console.log(e, e.context, e.extra, e.stack);
     var rng = new Range(e.line - 1, e.column, e.line - 1, e.column+1);
@@ -153,9 +154,9 @@ function update($scope) {
 
 function main($scope) { 
 
-  $scope.code = "";
+  $scope.code = localStorage['skulpty.js'];
   $scope.code2 = "{\n}";
-  $scope.opts = {forceVar: true, decorateLuaObjects: true, luaCalls: true, luaOperators: true, encloseWithFunctions: false };
+  $scope.opts = {locations: true, ranges: true};
 
   $scope.fix = function(c) { return c.reverse(); }
   $scope.aceLoaded = function(e) {
