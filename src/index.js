@@ -2,13 +2,15 @@
 
 var Sk = require('../lib/skulpt.js');
 var transform = require('./transform.js');
+var improveError = require('./errors.js');
 
 var defaultOptions = {
 	locations: true,
 	ranges: false,
 	sippets: true,
 	filename: 'file.py',
-	useLet: false
+	useLet: false,
+	friendlyErrors: true
 };
 
 function rangeToLoc(x, offsets) {
@@ -58,7 +60,7 @@ function decorate(n, code, offsets, options) {
 function parser(code, options) {
 	var lineOffsets = [];
 	var idx = -1;
-	var parse;
+	var parse, ast;
 	options = options || {};
 	for ( var opt in defaultOptions ) {
 		if ( !(opt in options) ) options[opt] = defaultOptions[opt];
@@ -72,30 +74,17 @@ function parser(code, options) {
 
 	try {
 		parse = Sk.parse(options.filename, code);
+		decorate(parse.cst, code, lineOffsets, options);
+		ast = Sk.astFromParse(parse.cst, options.filename, parse.flags);
 	} catch ( e ) {
-		/*
-		console.log("OHH NOOOOWW!");
-		console.log(e, e.extra);
-		console.log(JSON.stringify(e.extra.node, function(k,  o) {
-			if ( k == 'type' ) return Sk.nameForToken(o);
-			else if ( k == 'children' ) return o;
-			else if ( k ===  '' ) return o;
-			else if ( !isNaN(parseInt(k)) ) return o;
-			else return undefined;
-		}, '  '));
-		*/
-		if ( e.context ) {
-			var r = e.context[0];
-			if ( e.extra && e.extra.node ) decorate(e.extra.node, code, lineOffsets, options);
-			e.pos = locToRange(r[0], r[1], lineOffsets);
-			e.loc = {line: r[0], column: r[1]};
-			e.line = r[0];
-			e.column = r[1];
+		if ( e.extra && e.extra.node ) decorate(e.extra.node, code, lineOffsets, options);
+		improveError(e, options);
+		if ( e.loc ) {
+			e.pos = locToRange(e.loc.line, e.loc.column, lineOffsets);
 		}
 		throw e;
 	}
-	decorate(parse.cst, code, lineOffsets, options);
-	var ast = Sk.astFromParse(parse.cst, options.filename, parse.flags);
+
 	//console.log(JSON.stringify(ast, null, "  "));
 	var ctx = {varType: (options.useLet ? 'let' : 'var')};
 	var js = transform(ast, ctx);

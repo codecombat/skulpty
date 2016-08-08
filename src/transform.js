@@ -296,7 +296,7 @@ function transformCall(node, ctx) {
 					object: transform(node.args[0], ctx),
 					property: {type: "Identifier", name: "length"}
 				};
-			case 'all':
+			case 'all': case 'ord':
 			case 'sum': case 'any':
 			case 'str': case 'chr':
 			case 'ascii': case 'divmod':
