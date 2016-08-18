@@ -1091,6 +1091,7 @@ function transformUnaryOp(node, ctx) {
 }
 
 function transformWhile(node, ctx) {
+	if ( node.orelse && node.orelse.length > 0 ) abort("else: statement for while unsupported.");
 	return {
 		type: "WhileStatement",
 		test: transform(node.test, ctx),

@@ -71,8 +71,8 @@
         onLoad: aceLoaded2,
         onChange: aceChanged2
       }"></div>
-      <pre ng-show="error != ''" class="x ace_editor ace_dark ace-twilight">{{error}}
-      </pre>
+      <div ng-show="error != ''" class="x ace_editor ace_dark ace-twilight">{{error}}
+      </div>
     </div>
   </div>
   <div class="footer">
@@ -124,6 +124,7 @@ __pythonRuntime = filbert.pythonRuntime;
 var Range;
 var myAppModule = angular.module('MyApp', ['ui.ace']);
 function update($scope) {
+  var rng;
   try {
     if ( $scope.marker ) $scope.ace.session.removeMarker($scope.marker);
     $scope.error = "";
@@ -131,8 +132,16 @@ function update($scope) {
     var c = filbert.parse($scope.code, $scope.opts);
     $scope.code2 = "(function() {\n'use strict';\n" + escodegen.generate(c) + "\n})();";
   } catch ( e ) {
-    console.log(e, e.context, e.extra, e.stack);
-    var rng = new Range(e.line - 1, e.column, e.line - 1, e.column+1);
+    console.log("E", e, e.context, e.extra, e.stack);
+    var ctx = e.context;
+    console.log("C", ctx);
+    //var rng = new Range(e.line - 1, e.column, e.line - 1, e.column+1);
+    if ( ctx.length > 1 ) {
+      rng = new Range(ctx[0][0] - 1, ctx[0][1], ctx[1][0] -  1, ctx[1][1]);
+    } else {
+      rng = new Range(e.line - 1, e.column, e.line - 1, e.column+1);
+    }
+
     if ( e.extra && e.extra.node ) {
       var loc = e.extra.node.loc;
       //var rng = new Range(loc.start.line-1, loc.start.column, loc.end.line-1, loc.end.column);
@@ -144,7 +153,7 @@ function update($scope) {
         "text"
     );
 
-    $scope.error = e.message + "\n\n\n" + "at " + e.line + ":" + e.column;
+    $scope.error = e.message + "\n" + "at " + e.line + ":" + e.column;
     $scope.code2 = "";
 
     

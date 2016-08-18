@@ -1,13 +1,13 @@
 function splat(e) {
 	console.log("GOT ERROR!");
-		console.log(e, e.extra);
-		console.log(JSON.stringify(e.extra.node, function(k,  o) {
-			if ( k == 'type' ) return Sk.nameForToken(o);
-			else if ( k == 'children' ) return o;
-			else if ( k ===  '' ) return o;
-			else if ( !isNaN(parseInt(k)) ) return o;
-			else return undefined;
-		}, '  '));
+	console.log(e, e.extra);
+	console.log(JSON.stringify(e.extra.node, function(k,  o) {
+		if ( k == 'type' ) return Sk.nameForToken(o);
+		else if ( k == 'children' ) return o;
+		else if ( k ===  '' ) return o;
+		else if ( !isNaN(parseInt(k)) ) return o;
+		else return undefined;
+	}, '  '));
 }
 
 function improveError(e, options) {
@@ -27,7 +27,7 @@ function improveError(e, options) {
 		e.line = r[0];
 		e.column = r[1];
 	}
-	console.log(options);
+
 	if ( options.friendlyErrors && e.extra ) {
 		e.message = makeErrorFriendly(e);
 	}
@@ -40,7 +40,7 @@ function friendlyString(s) {
 }
 
 function makeErrorFriendly(e) {
-	console.log("EX", e.message, e.extra);
+	//console.log("EX", e.message, e.extra);
 	if ( e.extra.kind == "DAG_MISS" ) {
 		if ( e.extra.expected.indexOf('T_COLON') !== -1 ) {
 			//We might be missing a colon.
@@ -61,7 +61,7 @@ function makeErrorFriendly(e) {
 		}
 
 		if ( e.extra.expected.indexOf('T_INDENT') !== -1 ) {
-			return 'Expected an indented code block.  Use and indented `pass` above this line to keep the block empty';
+			return 'Expected an indented code block.  Use an indented `pass` above this line to keep the block empty';
 		}
 
 		if ( e.extra.found === 'T_NAME' ) {
