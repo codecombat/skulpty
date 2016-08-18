@@ -2,8 +2,9 @@
   "name": "skulpty",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "build/skulpty.js",
   "scripts": {
+    "postinstall": "webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

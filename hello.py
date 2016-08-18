@@ -1,4 +1,3 @@
 if True:
-	pass
-elif roar
-	pass
+	roar("Rob is great",
+	andOtherStuff)
