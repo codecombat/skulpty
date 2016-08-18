@@ -5,7 +5,7 @@
   "main": "build/skulpty.js",
   "scripts": {
     "postinstall": "webpack",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "author": "",
   "license": "ISC",
@@ -13,5 +13,9 @@
     "escodegen": "^1.8.0",
     "skulpt": "git+https://github.com/skulpt/skulpt.git",
     "webpack": "^1.13.1"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.0.2"
   }
 }
