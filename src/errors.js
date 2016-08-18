@@ -71,7 +71,7 @@ function makeErrorFriendly(e) {
 			}
 		}
 
-		if ( e.extra.expected.indexOf('T_INDENT') !== -1 ) {			
+		if ( e.extra.expected.indexOf('T_INDENT') !== -1 ) {
 			var name  = nodeToType(e.extra.parent || e.extra.node);
 			return 'Empty ' + name + '. Put 4 spaces in front of statements inside the ' + name + '.';
 		}
