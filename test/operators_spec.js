@@ -64,13 +64,22 @@ describe("Operators", function () {
     expect(util.run(code)).to.equal(false);
   });
 
+  it("(x not in y) == False", function () {
+    var code = "\
+    x = [1]\n\
+    y = [[1]]\n\
+    return (x not in y) == False\n\
+    ";
+    expect(util.run(code)).to.equal(true);
+  });
+
   it("x not in y == False", function () {
     var code = "\
     x = [1]\n\
     y = [[1]]\n\
     return x not in y == False\n\
     ";
-    expect(util.run(code)).to.equal(true);
+    expect(util.run(code)).to.equal(false);
   });
 
   //it("x == [4, 5]", function () {

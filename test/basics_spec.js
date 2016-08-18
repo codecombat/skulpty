@@ -249,7 +249,7 @@ else  :\n\
   it("multi-statement lines error", function () {
     var code = "h='Hello' w='World' print(h) print(w)";
     var err = util.run(code);
-    expect(err.message).to.equal("Unexpected token");
+    expect(err.message).to.match(/^Unexpected token/);
   });
 
   it("default arguments", function () {

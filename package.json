@@ -11,10 +11,10 @@
   "license": "ISC",
   "dependencies": {
     "escodegen": "^1.8.0",
-    "skulpt": "git+https://github.com/skulpt/skulpt.git",
     "webpack": "^1.13.1"
   },
   "devDependencies": {
+    "skulpt": "git+https://github.com/codecombat/skulpt.git",
     "chai": "^3.5.0",
     "mocha": "^3.0.2"
   }

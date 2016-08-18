@@ -1,3 +1,5 @@
+var Sk = require('../lib/skulpt.js');
+
 function splat(e) {
 	console.log("GOT ERROR!");
 	console.log(e, e.extra);
@@ -36,7 +38,15 @@ function improveError(e, options) {
 function friendlyString(s) {
 	switch (s) {
 	case 'if_stmt': return 'if statement';
+	case 'while_stmt': return 'while statement';
+	default: return '?' + s + '?';
 	} 
+}
+
+function nodeToType(n) {
+	var type = Sk.nameForToken(n.type);
+	if ( type === 'suite' ) return nodeToType(n.children[0]);
+	return friendlyString(type);
 }
 
 function makeErrorFriendly(e) {
@@ -45,7 +55,8 @@ function makeErrorFriendly(e) {
 		if ( e.extra.expected.indexOf('T_COLON') !== -1 ) {
 			//We might be missing a colon.
 			if ( e.extra.found == 'T_NEWLINE' ) {
-				return "Need a `:` on the end of the line following `" + e.extra.found_val + "`.";
+				var after = (e.context && e.context[2] ? e.context[2] : e.extra.found_val).replace(/\s+$/,'');
+				return "Need a `:` on the end of the line following `" + after + "`.";
 			}
 			if ( e.extra.found == 'T_EQUAL' ) {
 				return "Can't assign to a variable within the condition of an " + friendlyString(e.extra.inside);
@@ -60,8 +71,9 @@ function makeErrorFriendly(e) {
 			}
 		}
 
-		if ( e.extra.expected.indexOf('T_INDENT') !== -1 ) {
-			return 'Expected an indented code block.  Use an indented `pass` above this line to keep the block empty';
+		if ( e.extra.expected.indexOf('T_INDENT') !== -1 ) {			
+			var name  = nodeToType(e.extra.parent || e.extra.node);
+			return 'Empty ' + name + '. Put 4 spaces in front of statements inside the ' + name + '.';
 		}
 
 		if ( e.extra.found === 'T_NAME' ) {
