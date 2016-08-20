@@ -96,7 +96,7 @@ function makeErrorFriendly(e) {
 
 		if ( e.extra.found === 'T_INDENT' ) {
 			if ( e.extra.expected.indexOf('stmt') !== -1 ) {
-				return 'No indent is needed here.';
+				return 'Too much indentation at the beginning of this line.';
 			}
 		}
 
