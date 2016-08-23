@@ -40,8 +40,8 @@ function decorate(n, code, offsets, options) {
 	if ( n.children )
 	for ( var i = 0; i < n.children.length; ++i ) {
 		var r = decorate(n.children[i], code, offsets, options);
-		range[0] = Math.min(range[0], r[0]);
-		range[1] = Math.max(range[1], r[1]);
+		range[0] = Math.min(range[0], r[0]) + 1;
+		range[1] = Math.max(range[1], r[1]) + 1;
 	}
 
 	

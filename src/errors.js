@@ -39,6 +39,7 @@ function friendlyString(s) {
 	switch (s) {
 	case 'if_stmt': return 'if statement';
 	case 'while_stmt': return 'while statement';
+	case 'funcdef': return 'function';
 	default: return '?' + s + '?';
 	} 
 }
@@ -57,9 +58,11 @@ function makeErrorFriendly(e) {
 			if ( e.extra.found == 'T_NEWLINE' ) {
 				var after = (e.context && e.context[2] ? e.context[2] : e.extra.found_val).replace(/\s+$/,'');
 				return "Need a `:` on the end of the line following `" + after + "`.";
-			}
-			if ( e.extra.found == 'T_EQUAL' ) {
-				return "Can't assign to a variable within the condition of an " + friendlyString(e.extra.inside);
+			} else if ( e.extra.found == 'T_NAME' ) {
+				var after = (e.context && e.context[2] ? e.context[2] : e.extra.found_val).replace(/\s+$/,'');
+				return "Need a `:` after `" + after + "`.";
+			} else if ( e.extra.found == 'T_EQUAL' ) {
+				return "Can't assign to a variable within the condition of an " + friendlyString(e.extra.inside) + ".  Did you mean to use `==` instead of `=`?";
 			}
 		}
 

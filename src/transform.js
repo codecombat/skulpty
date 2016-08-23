@@ -92,8 +92,7 @@ function var_(name, init) {
 
 function transform(node, ctx) {
 	//console.log(node.lineno, node.col_offset);
-	var result = dispatch(node, ctx);
-	result.range = node.range;
+	var result = dispatch(node, ctx);;
 	result.loc = node.loc;
 	result.str = node.str;
 	return result;
