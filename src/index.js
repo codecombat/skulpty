@@ -20,7 +20,7 @@ function rangeToLoc(x, offsets) {
 		best = i;
 	}
 
-	return {line: best+2, column: x - ( best > 0 ? offsets[best] : 0) };
+	return {line: best+2, column: x - ( best >= 0 ? offsets[best] : 0) - 1 };
 }
 
 function locToRange(line, col, offsets) {

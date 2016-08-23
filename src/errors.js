@@ -25,14 +25,18 @@ function improveError(e, options) {
 	}
 
 	if ( r ) {
-		e.loc = {line: r[0], column: r[1]};
-		e.line = r[0];
-		e.column = r[1];
+		setErrorPos(e, r[0], r[1]);
 	}
 
 	if ( options.friendlyErrors && e.extra ) {
 		e.message = makeErrorFriendly(e);
 	}
+}
+
+function setErrorPos(e, line, col) {
+	e.loc = {line: line, column: col};
+	e.line = line;
+	e.column = col;
 }
 
 function friendlyString(s) {
@@ -93,6 +97,19 @@ function makeErrorFriendly(e) {
 			//We are parsing either an arglist or a subscript.
 			if ( e.extra.expected.indexOf('T_RPAR') === 0 ) {
 				//Expected ), must be a arglsit;
+				if ( e.line > e.extra.node.lineno ) {
+					//Our arglist is incomplete, and we have made it to the next line,.
+					//Likely they just forgot to close their ()'s
+					setErrorPos(e, e.extra.node.lineno, e.extra.node.col_offset);
+					var t = e.extra.node.loc;
+					e.context = [
+						[t.start.line,t.start.column],
+						[t.end.line,t.end.column]
+					];
+					console.log("Cz", e.context);
+					return 'Unclosed `(` in function arguments.' + e.extra.node.lineno;
+
+				}
 				return 'Function calls paramaters must be seperated by `,`s';
 			}
 		}
@@ -108,10 +125,22 @@ function makeErrorFriendly(e) {
 		}
 
 		return 'Unexpected token: ' + e.message;
-	}
-
-	if ( e.extra.kind == "CLASSIFY" ) {
+	} else if ( e.extra.kind == "CLASSIFY" ) {
+		if ( e.extra.value === '"' ) return 'Unterminated string. Add a matching `"` at the end of your string.';
 		return 'Unterminated `' + e.extra.value + '`';
+	} else if ( e.extra.kind == "STRING_EOF" ) {
+		return 'Unterminated muti-line string. Add a matching `"""` at the end of your string.';
+	} else if ( e.extra.kind == "STATEMENT_EOF" ) {
+		if ( e.extra.parenlev > 0 ) {
+			var top = e.extra.parenstack[e.extra.parenstack.length-1];
+			var kind = top[0];
+			var types = '([{';
+			var pair = ')]}';
+			var close = pair[types.indexOf(kind)];
+			setErrorPos(e, top[1], top[2]-1);
+			return 'Unmatched `' + kind + '`.  Every opening `' + kind + '` needs a closing `' + close + '` to match it.';
+		}
+		return e.message;
 	}
 
 	return e.message;
