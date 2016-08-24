@@ -12,7 +12,7 @@ function splat(e) {
 	}, '  '));
 }
 
-function improveError(e, options) {
+function improveError(e, options, code) {
 	var r;
 	if ( e.context && e.context.length >0 ) {
 		r = e.context[0];	
@@ -29,7 +29,7 @@ function improveError(e, options) {
 	}
 
 	if ( options.friendlyErrors && e.extra ) {
-		e.message = makeErrorFriendly(e);
+		e.message = makeErrorFriendly(e, code);
 	}
 }
 
@@ -54,16 +54,18 @@ function nodeToType(n) {
 	return friendlyString(type);
 }
 
-function makeErrorFriendly(e) {
+function makeErrorFriendly(e, code) {
 	//console.log("EX", e.message, e.extra);
 	if ( e.extra.kind == "DAG_MISS" ) {
 		if ( e.extra.expected.indexOf('T_COLON') !== -1 ) {
 			//We might be missing a colon.
+			var after = (e.context && e.context[2] ? e.context[2] : e.extra.found_val).replace(/\s+$/,'');
+			var lc = e.extra.node.children[e.extra.node.children.length-1];
+			if ( lc.value === 'else' ) after = 'else';
+
 			if ( e.extra.found == 'T_NEWLINE' ) {
-				var after = (e.context && e.context[2] ? e.context[2] : e.extra.found_val).replace(/\s+$/,'');
 				return "Need a `:` on the end of the line following `" + after + "`.";
 			} else if ( e.extra.found == 'T_NAME' ) {
-				var after = (e.context && e.context[2] ? e.context[2] : e.extra.found_val).replace(/\s+$/,'');
 				return "Need a `:` after `" + after + "`.";
 			} else if ( e.extra.found == 'T_EQUAL' ) {
 				return "Can't assign to a variable within the condition of an " + friendlyString(e.extra.inside) + ".  Did you mean to use `==` instead of `=`?";
@@ -79,7 +81,19 @@ function makeErrorFriendly(e) {
 		}
 
 		if ( e.extra.expected.indexOf('T_INDENT') !== -1 ) {
-			var name  = nodeToType(e.extra.parent || e.extra.node);
+			var lc = e.extra.parent || e.extra.node;
+			var name  = nodeToType(lc);
+			if ( name === 'if statement' ) {
+				//Scan for the most recent part of the ifstatement.
+				for ( var i = 0; i < lc.children.length; ++i ) {
+					if ( ["if", "elif", "else"].indexOf(lc.children[i].value) !== -1 ) {
+						console.log(i, lc.children[i].value);
+						name = lc.children[i].value + ' statement';
+					}
+				}
+			}
+			console.log("L",lc);
+			if ( lc.value === 'else' ) name = 'else statement';
 			return 'Empty ' + name + '. Put 4 spaces in front of statements inside the ' + name + '.';
 		}
 
@@ -122,6 +136,24 @@ function makeErrorFriendly(e) {
 
 		if ( e.extra.expected.indexOf('subscriptlist') === 0 ) {
 			return "Malformed subscript";
+		}
+
+		if ( e.extra.expected.indexOf('T_NEWLINE') !== -1 ) {
+			var n = e.extra.node;
+			
+			if ( e.extra.node.children[0] ) {
+				var n = e.extra.node.children[0];
+				var previousType = Sk.nameForToken(n.type);
+			
+				if ( previousType == 'small_stmt' ) {
+					while ( n.children && n.children.length == 1 ) n = n.children[0];
+					var what = code.substring(n.range[0], n.range[1]);
+					console.log("N", n);
+					return 'If you want to call `' + what +'` as function, you need `()`\'s';
+				}
+			}
+			console.log("c", nodeToType(e.extra.node.children[0]));
+			//console.log("RR", nodeToType(e.extra.node.childern[0]));
 		}
 
 		return 'Unexpected token: ' + e.message;

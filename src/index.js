@@ -6,7 +6,7 @@ var improveError = require('./errors.js');
 
 var defaultOptions = {
 	locations: true,
-	ranges: false,
+	ranges: true,
 	sippets: true,
 	filename: 'file.py',
 	useLet: false,
@@ -19,12 +19,14 @@ function rangeToLoc(x, offsets) {
 		if ( offsets[i] > x ) break;
 		best = i;
 	}
-
-	return {line: best+2, column: x - ( best >= 0 ? offsets[best] : 0) - 1 };
+	var off = best >= 0 ? offsets[best] : 0;
+	return {line: best+2, column: x - off, pos: x };
 }
 
 function locToRange(line, col, offsets) {
-	return (line < 2 ? 0 : offsets[line - 2]) + col;
+	var loff = 0;
+	if ( line > 2 && (line-2) < offsets.length ) loff = offsets[line-2];
+	return loff + col;
 }
 
 function decorate(n, code, offsets, options) {
@@ -35,16 +37,15 @@ function decorate(n, code, offsets, options) {
 		numrange === numrange ? numrange : -Infinity
 	];
 	
-	if ( n.value ) range[1] += (n.value.length-1);
+	if ( n.value ) range[1] += (n.value.length);
 
 	if ( n.children )
 	for ( var i = 0; i < n.children.length; ++i ) {
 		var r = decorate(n.children[i], code, offsets, options);
-		range[0] = Math.min(range[0], r[0]) + 1;
-		range[1] = Math.max(range[1], r[1]) + 1;
+		range[0] = Math.min(range[0], r[0]);
+		range[1] = Math.max(range[1], r[1]);
 	}
 
-	
 	if ( options.ranges ) n.range = range;
 	if ( options.locations ) {
 		n.loc = {
@@ -69,7 +70,7 @@ function parser(code, options) {
 	while ( true ) {
 		idx = code.indexOf("\n", idx+1);
 		if ( idx < 0 ) break;
-		lineOffsets.push(idx);
+		lineOffsets.push(idx+1);
 	}
 
 	try {
@@ -78,7 +79,7 @@ function parser(code, options) {
 		ast = Sk.astFromParse(parse.cst, options.filename, parse.flags);
 	} catch ( e ) {
 		if ( e.extra && e.extra.node ) decorate(e.extra.node, code, lineOffsets, options);
-		improveError(e, options);
+		improveError(e, options, code);
 		if ( e.loc ) {
 			e.pos = locToRange(e.loc.line, e.loc.column, lineOffsets);
 		}
