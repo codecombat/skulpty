@@ -294,7 +294,7 @@ describe("Runtime library tests", function () {
     expect(util.run(code)).to.equal('11');
   });
 
-  xit("ord(\u2020)", function () {
+  it("ord(\u2020)", function () {
     var code = "\
     return ord('\u2020')\n\
     ";

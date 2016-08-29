@@ -68,7 +68,7 @@ else\n\
     }
     expect(error.message).to.equal("Need a `:` on the end of the line following `else`.");
     expect(error.pos).to.equal(22);
-    expect(error.loc).to.equal({line: 3, column: 4});
+    expect(error.loc).to.deep.equal({line: 3, column: 4});
   });
 
   it("JS-style else if", function () {
@@ -84,9 +84,9 @@ else if True:\n\
     } catch (e) {
       error = e;
     }
-    expect(error.message).to.match(/^Unexpected token/);
+    expect(error.message).to.match(/^Need a .:. after .else./);
     expect(error.pos).to.equal(23);
-    expect(error.loc).to.equal({line: 3, column: 5});
+    expect(error.loc).to.deep.equal({line: 3, column: 5});
   });
 
 });
