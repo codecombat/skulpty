@@ -76,6 +76,7 @@ function parser(code, options) {
 	try {
 		parse = Sk.parse(options.filename, code);
 		decorate(parse.cst, code, lineOffsets, options);
+		parse.flags = parse.flags | Sk.Parser.CO_FUTURE_UNICODE_LITERALS; //Enable future unicode literals
 		ast = Sk.astFromParse(parse.cst, options.filename, parse.flags);
 	} catch ( e ) {
 		if ( e.extra && e.extra.node ) decorate(e.extra.node, code, lineOffsets, options);
