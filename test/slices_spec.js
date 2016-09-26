@@ -115,4 +115,19 @@ describe("Slices", function () {
     expect(util.run(code)).to.deep.equal([2, 1]);
   });
 
+  it("S[2:6]", function () {
+    var code = "\n\
+    S = \"Hello World\"\n\
+    return S[2:6]";
+    expect(util.run(code)).to.equal('llo');
+  });
+
+  it("S[2::-1]", function () {
+    var code = "\n\
+    S = \"Hello World\"\n\
+    return S[2:6]";
+    expect(util.run(code)).to.equal('leH');
+  });
+
+
 });
