@@ -107,6 +107,11 @@ function makeErrorFriendly(e, code) {
 			} 
 		}
 
+		if ( e.extra.found === 'T_AMPER' && e.extra.inside == 'and_expr' ) {
+			return 'Python uses the word `and` instead of `&&` for boolean AND expressions.';
+		}
+
+
 		if ( e.extra.inside === 'trailer' ) {
 			//We are parsing either an arglist or a subscript.
 			if ( e.extra.expected.indexOf('T_RPAR') === 0 ) {
