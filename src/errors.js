@@ -63,7 +63,9 @@ function makeErrorFriendly(e, code) {
 			var lc = e.extra.node.children[e.extra.node.children.length-1];
 			if ( lc.value === 'else' ) after = 'else';
 
-			if ( e.extra.found == 'T_NEWLINE' ) {
+			if ( e.extra.found == 'T_SEMI' ) {
+				return "Replace the `;` at the end of `" + after + "` with a `:`";
+			} else if ( e.extra.found == 'T_NEWLINE' ) {
 				return "Need a `:` on the end of the line following `" + after + "`.";
 			} else if ( e.extra.found == 'T_NAME' ) {
 				return "Need a `:` after `" + after + "`.";
