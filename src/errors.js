@@ -1,3 +1,5 @@
+'use strict';
+
 var Sk = require('../lib/skulpt.js');
 
 function splat(e) {
@@ -16,7 +18,7 @@ function improveError(e, options, code) {
 	var r;
 	if ( e.context && e.context.length >0 ) {
 		r = e.context[0];	
-	} 
+	}
 
 	if ( e.extra && e.extra.node ) {
 		if ( !r ) {
