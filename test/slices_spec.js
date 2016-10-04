@@ -118,14 +118,14 @@ describe("Slices", function () {
   it("S[2:6]", function () {
     var code = "\n\
     S = \"Hello World\"\n\
-    return S[2:6]";
-    expect(util.run(code)).to.equal('llo');
+    return S[2:7]";
+    expect(util.run(code)).to.equal('llo W');
   });
 
   it("S[2::-1]", function () {
     var code = "\n\
     S = \"Hello World\"\n\
-    return S[2:6]";
+    return S[2::-1]";
     expect(util.run(code)).to.equal('leH');
   });
 
