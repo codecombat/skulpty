@@ -669,7 +669,6 @@ function createForLoop(iident, tident, iter, target, body, ctx) {
 
 	return {
 		type: "ForStatement",
-		test: {type: "Literal", value: false},
 		init: {
 			"type": "VariableDeclaration",
 			"declarations": [
