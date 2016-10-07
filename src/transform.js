@@ -1,4 +1,14 @@
+'use strict';
+
 var isArray = Array.isArray;
+
+function getOpName(op) {
+	if (op.name) return op.name;
+	//Work around browsers that dont suport Function#name (like IE11)
+	var matches = op.toString().match(/function ([^)]+)\(/);
+	if ( matches === null ) return undefined;
+	return matches[1];
+}
 
 function abort(why) {
 	console.log(new Error("ABORT:" + why).stack);
@@ -179,13 +189,14 @@ function transformAugAssign(node, ctx) {
 	var right = transform(node.value, ctx);
 	var left = transform(node.target, ctx);
 	var tn = createTempName("left");
+	var opName = getOpName(node.op);
 	return [
 		var_(ident(tn), left),
 		ensureStatement({
 			type: "AssignmentExpression",
 			operator: '=',
 			left: left,
-			right: createBinOp(left, node.op.name, right)
+			right: createBinOp(left, opName, right)
 		})
 	];
 }
@@ -256,7 +267,7 @@ function createBinOp(left, op, right) {
 function transformBinOp(node, ctx) {
 	var left = transform(node.left, ctx);
 	var right = transform(node.right, ctx);
-	return createBinOp(left, node.op.name, right);
+	return createBinOp(left, getOpName(node.op), right);
 }
 
 function transformBoolOp(node, ctx) {
@@ -264,13 +275,14 @@ function transformBoolOp(node, ctx) {
 	for ( var i = 0; i < node.values.length; ++i ) {
 		fvals[i] = transform(node.values[i], ctx);
 	}
+	var opName = getOpName(node.op);
 	var operators = {
 		'And': '&&',
 		'Or': '||'
 	};
 
-	if ( !(node.op.name in operators ) ) abort("Unknown bool opeartor: " + node.op.name);
-	var opstr = operators[node.op.name];
+	if ( !(opName in operators ) ) abort("Unknown bool opeartor: " + opName);
+	var opstr = operators[opName];
 
 	var result = fvals.pop();
 	while ( fvals.length > 0 ) {
@@ -502,19 +514,19 @@ function tranformContinue(node, ctx) {
 
 function makeCop(left, op, right) {
 
-var fxOps = {
+	var fxOps = {
 		"In_": "in",
 		"NotIn": "in"
 	};
-
-	if ( op.name in fxOps  ) {
+	var opName = getOpName(op);
+	if ( opName in fxOps  ) {
 		var call = {
 			type: "CallExpression",
-			callee: makeVariableName("__pythonRuntime.ops." + fxOps[op.name]),
+			callee: makeVariableName("__pythonRuntime.ops." + fxOps[opName]),
 			arguments: [left, right]
 		};
 
-		if ( op.name == "NotIn" ) {
+		if ( opName == "NotIn" ) {
 			return {
 				type: "UnaryExpression",
 				argument: call,
@@ -537,8 +549,8 @@ var fxOps = {
 		"IsNot": "!=="
 	};
 	
-	if ( !(op.name in operators) ) abort("Unsuported Compare operator: " + op.name);
-	return binOp(left, operators[op.name], right);
+	if ( !(opName in operators) ) abort("Unsuported Compare operator: " + opName);
+	return binOp(left, operators[opName], right);
 }
 
 function transformCompare(node, ctx) {
@@ -1064,11 +1076,12 @@ function transformUnaryOp(node, ctx) {
 		"Add": "add",
 		"Mult": "multiply",
 	};
+	var opName = getOpName(node.op);
 
-	if ( node.op.name in fxOps  ) {
+	if ( opName in fxOps  ) {
 		var call = {
 			type: "CallExpression",
-			callee: makeVariableName("__pythonRuntime.ops." + fxOps[node.op.name]),
+			callee: makeVariableName("__pythonRuntime.ops." + fxOps[opName]),
 			arguments: [argument]
 		};
 		return call;
@@ -1080,12 +1093,12 @@ function transformUnaryOp(node, ctx) {
 		"Invert": "~"
 	};
 
-	if ( !(node.op.name in operators) ) abort("Unknown unary operator: " + node.op.name);
+	if ( !(opName in operators) ) abort("Unknown unary operator: " + opName);
 
 	return {
 		type: "UnaryExpression",
 		argument: argument,
-		operator: operators[node.op.name]
+		operator: operators[opName]
 	};
 	
 }
