@@ -220,4 +220,18 @@ describe("Lists", function () {
     return a";
     expect(util.run(code)).to.deep.equal(['0', '1', '100', '22', '33', '5', '55']);
   });
+  it("[1,2].pop()", function () {
+    var code = "\n\
+    a = [1,2]\n\
+    a.pop()\n\
+    return a";
+    expect(util.run(code)).to.deep.equal([1]);
+  });
+  it("[1,2].pop(0)", function () {
+    var code = "\n\
+    a = [1,2]\n\
+    a.pop(0)\n\
+    return a";
+    expect(util.run(code)).to.deep.equal([2]);
+  });
 });

@@ -709,7 +709,7 @@ function transformFor(node, ctx) {
 }
 
 function prepareFunctionBody(node, ctx) {
-		var args = node.args.args.slice(0);
+	var args = node.args.args.slice(0);
 	if  ( ctx.inClass ) {
 		//TODO: Make sure it's named self, maybe?
 		args.shift();
