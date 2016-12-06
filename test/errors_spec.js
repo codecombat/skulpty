@@ -89,4 +89,8 @@ else if True:\n\
     expect(error.loc).to.deep.equal({line: 3, column: 5});
   });
 
+  it("Error for for-else", function() {
+    expect(util.run("for x in None:\n\tpass\nelse:\n\tpass").toString()).to.equal('Error: else: for-else statement unsupported.');
+  });
+
 });

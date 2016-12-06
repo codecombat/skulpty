@@ -137,6 +137,7 @@ function dispatch(node, ctx) {
 		case 'Continue': return tranformContinue(node, ctx);
 		case 'Compare': return transformCompare(node, ctx);
 		case 'Dict': return transformDict(node, ctx);
+		case 'Delete': return transformDel(node, ctx);
 		case 'Expr': return transformExpr(node, ctx);
 		case 'For': return transformFor(node, ctx);
 		case 'FunctionDef': return transformFunctionDef(node, ctx);
@@ -161,7 +162,7 @@ function dispatch(node, ctx) {
 		default:
 			console.log("Dont know how to transform: " + node._astname);
 			console.log(JSON.stringify(node, null, '  '));
-			throw new Error("Up");
+			throw new Error("Dont know how to transform: " + node._astname);
 	}
 }
 
@@ -574,6 +575,29 @@ function transformCompare(node, ctx) {
 	
 }
 
+function transformDel(node, ctx) {
+	var result = [];
+	for ( var i = 0; i < node.targets.length; ++i ) {
+		var st = node.targets[i];
+		var partial = transform(st, ctx);
+		result.push({
+			type: "AssignmentExpression",
+			operator: "=",
+			left: partial,
+			right: {
+				type: "UnaryExpression",
+				argument: literal(0),
+				operator: 'void',
+				prefix: true
+			}
+		});
+	}
+	return ensureStatement({
+		type: "SequenceExpression",
+		expressions: result
+	});
+}
+
 function transformDict(node, ctx) {
 	var args = [];
 	for ( var i = 0; i < node.keys.length; ++i ) {
@@ -705,6 +729,7 @@ function transformFor(node, ctx) {
 	var iter = transform(node.iter, ctx);
 	var body = ensureStatement(transform(node.body, ctx));
 
+	if ( node.orelse && node.orelse.length > 0 ) abort("else: for-else statement unsupported.");
 	return createForLoop(iident, tident, iter, node.target, body, ctx);
 }
 

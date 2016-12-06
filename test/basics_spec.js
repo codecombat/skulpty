@@ -316,6 +316,10 @@ else  :\n\
     2\\\n\
     +3";
     expect(util.run(code)).to.equal(6);
+  });
+
+  it("del variable", function() {
+    expect(util.run("x = 10\ndel x, y\nreturn x")).to.equal(undefined)
   })
   
 });
