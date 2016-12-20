@@ -2,6 +2,7 @@
 
 var isArray = Array.isArray;
 
+//TODO: Find a way to not have to do this.
 function getOpName(op) {
 	if (op.name) return op.name;
 	//Work around browsers that dont suport Function#name (like IE11)
@@ -260,7 +261,7 @@ function createBinOp(left, op, right) {
 
 	};
 
-	if ( !(op in operators) ) abort("Unknwon binary operator: " + op);
+	if ( !(op in operators) ) abort("Unknown binary operator: " + op);
 
 	return binOp(left, operators[op], right);
 }
