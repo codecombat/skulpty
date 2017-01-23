@@ -4,11 +4,10 @@ var isArray = Array.isArray;
 
 //TODO: Find a way to not have to do this.
 function getOpName(op) {
-	if (op.name) return op.name;
-	//Work around browsers that dont suport Function#name (like IE11)
-	var matches = op.toString().match(/function ([^)]+)\(/);
-	if ( matches === null ) return undefined;
-	return matches[1];
+	if (op.prototype._astname) {
+		return op.prototype._astname;
+	}
+	throw new Error("Coudlnt decode operator name for: " + (op.name || op.toString()));
 }
 
 function abort(why) {
@@ -518,6 +517,7 @@ function makeCop(left, op, right) {
 
 	var fxOps = {
 		"In_": "in",
+		"In": "in",
 		"NotIn": "in"
 	};
 	var opName = getOpName(op);
