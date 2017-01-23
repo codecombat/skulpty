@@ -2,7 +2,6 @@
 
 var isArray = Array.isArray;
 
-//TODO: Find a way to not have to do this.
 function getOpName(op) {
 	if (op.prototype._astname) {
 		return op.prototype._astname;
