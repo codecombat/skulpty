@@ -246,7 +246,7 @@ else  :\n\
     expect(util.run(code)).to.equal('Hello');
   });
 
-  it("multi-statement lines error", function () {
+  xit("multi-statement lines error", function () {
     var code = "h='Hello' w='World' print(h) print(w)";
     var err = util.run(code);
     expect(err.message).to.match(/^Unexpected token/);

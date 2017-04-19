@@ -5,9 +5,9 @@ var util = require('./util.js');
 describe("Errors", function () {
 
   it("Indent error while block", function () {
-    var code = "\
-while True:\n\
-break\n\
+    var code = "\n\
+    while True:\n\
+    break\n\
     ";
     var error;
     try {
@@ -17,13 +17,13 @@ break\n\
     }
     expect(error.message).to.equal("Empty while statement. Put 4 spaces in front of statements inside the while statement.");
     expect(error.pos).to.equal(12);
-    expect(error.loc).to.equal({line: 2, column: 0});
+    expect(error.loc).to.deep.equal({line: 2, column: 0});
   });
 
   it("Indent error if block", function () {
     var code = "\
-if True:\n\
-x = 5\n\
+    if True:\n\
+    x = 5\n\
     ";
     var error;
     try {
@@ -33,14 +33,14 @@ x = 5\n\
     }
     expect(error.message).to.equal("Empty if statement. Put 4 spaces in front of statements inside the if statement.");
     expect(error.pos).to.equal(9);
-    expect(error.loc).to.equal({line: 2, column: 0});
+    expect(error.loc).to.deep.equal({line: 2, column: 0});
   });
 
   it("Indent error within if block", function () {
     var code = "\
-if True:\n\
-  x = 5\n\
-    x = 5\n\
+    if True:\n\
+      x = 5\n\
+        x = 5\n\
     ";
     var error;
     try {
@@ -49,17 +49,17 @@ if True:\n\
       error = e;
     }
     expect(error.message).to.equal("Indentation error.");
-    expect(error.pos).to.equal(19);
-    expect(error.loc).to.equal({line: 3, column: 2});
+    expect(error.pos).to.equal(17);
+    expect(error.loc).to.deep.equal({line: 3, column: 0});
   });
 
   it("else with no colon", function () {
     var code = "\
-if False:\n\
-  x = 5\n\
-else\n\
-  x = 7\n\
-";
+    if False:\n\
+      x = 5\n\
+    else\n\
+      x = 7\n\
+    ";
     var error;
     try {
       util.parse(code);
@@ -73,11 +73,11 @@ else\n\
 
   it("JS-style else if", function () {
     var code = "\
-if False:\n\
-  x = 5\n\
-else if True:\n\
-  x = 7\n\
-";
+    if False:\n\
+      x = 5\n\
+    else if True:\n\
+      x = 7\n\
+    ";
     var error;
     try {
       util.parse(code);

@@ -25,7 +25,7 @@ function rangeToLoc(x, offsets) {
 
 function locToRange(line, col, offsets) {
 	var loff = 0;
-	if ( line > 2 && (line-2) < offsets.length ) loff = offsets[line-2];
+	if ( line >= 2 && (line-2) < offsets.length ) loff = offsets[line-2];
 	return loff + col;
 }
 

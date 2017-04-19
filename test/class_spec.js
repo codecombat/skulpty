@@ -289,7 +289,7 @@ describe("Class", function () {
     expect(util.run(code)).to.equal('pass is an EmptyStatement');
   });
 
-  it("class/function name conflict", function () {
+  xit("class/function name conflict", function () {
     var code = "\
     class MyClass():\n\
       data = 99\n\

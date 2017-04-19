@@ -562,7 +562,7 @@ function transformCompare(node, ctx) {
 		var right = transform(node.comparators[i], ctx);
 		var cop = makeCop(left, node.ops[i], right);
 		if ( result ) {
-			result = binOp(result, '&&', cop);
+			result = logicOp(result, '&&', cop);
 		} else {
 			result = cop;
 		}
