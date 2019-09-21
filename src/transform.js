@@ -1034,7 +1034,7 @@ function transformNum(node, ctx) {
 function transformPrint(node, ctx) {
 	return {
 		type: "CallExpression",
-		callee: makeVariableName("console.log"),
+		callee: makeVariableName("print"),
 		arguments: transform(node.values, ctx)
 	};
 }
