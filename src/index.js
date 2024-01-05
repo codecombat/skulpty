@@ -2,6 +2,7 @@
 
 var Sk = require('../lib/skulpt.js');
 var transform = require('./transform.js');
+var naive_transform = require('./naive_transform.js');
 var improveError = require('./errors.js');
 
 var defaultOptions = {
@@ -89,7 +90,7 @@ function parser(code, options) {
 
 	//console.log(JSON.stringify(ast, null, "  "));
 	var ctx = {varType: (options.useLet ? 'let' : 'var')};
-	var js = transform(ast, ctx);
+	var js = options.naive ? naive_transform(ast, ctx) : transform(ast, ctx);
 	return js;
 }
 

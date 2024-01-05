@@ -57,7 +57,11 @@ function literal(v) {
 		return {type: "UnaryExpression", argument: literal(-v), operator: '-' };
 	}
 
-	return {type: "Literal", value: v, raw: JSON.stringify(v)};
+	if ( typeof v === 'number' ) {
+		return {type: "NumericLiteral", value: v, raw: JSON.stringify(v)};
+	}
+
+	return {type: "StringLiteral", value: v, raw: JSON.stringify(v)};
 }
 
 function binOp(left, op, right) {
@@ -108,6 +112,7 @@ function transform(node, ctx) {
 	return result;
 }
 
+
 function dispatch(node, ctx) {
 	if ( !ctx.locals ) ctx.locals = Object.create(null);
 
@@ -143,7 +148,7 @@ function dispatch(node, ctx) {
 		case 'GeneratorExp': return transformListComp(node, ctx); //TODO: Make this seperate
 		case 'Global': return transformGlobal(node, ctx);
 		case 'If': return transformIf(node, ctx);
-		case 'IfExp': return transformIfExp(node, ctx);
+        case 'IfExp': return transformIfExp(node, ctx);
 		case 'Import': return NoOp();
 		case 'Lambda': return transformLambda(node, ctx);
 		case 'List': return transformList(node, ctx);
@@ -172,7 +177,7 @@ function NoOp() { return []; }
 
 function makeVariableName(name) {
 	var parts = Array.isArray(name) ? name : name.split(/\./g);
-	if ( parts.length === 1 ) return ident(parts[0]);
+	if ( parts.length === 1 ) return ident(name);
 	var prop = parts.pop();
 	return member(makeVariableName(parts), ident(prop));
 }
@@ -218,37 +223,10 @@ function transformAssign(node, ctx) {
 }
 
 function createBinOp(left, op, right) {
-
-	if ( op === 'FloorDiv' ) {
-		return {
-			type: "CallExpression",
-			callee: makeVariableName('Math.floor'),
-			arguments: [{
-				type: "BinaryExpression",
-				left: left,
-				right: right,
-				operator: '/'
-			}]
-		};
-	}
-
-	var fxOps = {
-		"Add": "__pythonRuntime.ops.add",
-		"Mult": "__pythonRuntime.ops.multiply",
-		"Pow": "Math.pow"
-	};
-
-	if ( op in fxOps  ) {
-		var call = {
-			type: "CallExpression",
-			callee: makeVariableName(fxOps[op]),
-			arguments: [left, right]
-		};
-		return call;
-	}
-
 	var operators = {
 		"Add": "+",
+        "Mult": "*",
+        "Pow": "**",
 		"Sub": "-",
 		"Mod": "%",
 		"Div": "/",
@@ -256,7 +234,8 @@ function createBinOp(left, op, right) {
 		"BitOr": "|",
 		'BitXor': '^',
 		"LShift": "<<",
-		"RShift": ">>"
+		"RShift": ">>",
+        "FloorDiv": "//"
 
 	};
 
@@ -300,54 +279,6 @@ function transformBreak(node, ctx) {
 }
 
 function transformCall(node, ctx) {
-	var builtins = ['len'];
-	if ( node.func._astname == 'Name' ) {
-		switch ( node.func.id.v ) {
-			case 'len':
-				return {
-					type: "MemberExpression",
-					object: transform(node.args[0], ctx),
-					property: {type: "Identifier", name: "length"}
-				};
-			case 'all': case 'ord':
-			case 'sum': case 'any':
-			case 'str': case 'chr':
-			case 'ascii': case 'divmod':
-			case 'range': case 'enumerate':
-			case 'round': case 'filter':
-			case 'abs': case 'float':
-			case 'int': case 'hex':
-			case 'tuple': case  'map':
-			case 'bool': case 'max':
-			case 'sorted': case 'min':
-			case 'list': case 'oct':
-			case 'pow': case  'reversed':
-			case 'repr':
-				return {
-					type: 'CallExpression',
-					callee: makeVariableName('__pythonRuntime.functions.' + node.func.id.v),
-					arguments: transform(node.args, ctx)
-				};
-			case 'dict':
-				var args = [];
-				for ( var i = 0; i < node.keywords.length; ++i ) {
-					args.push({
-						type: "ArrayExpression",
-						elements: [
-							literal(node.keywords[i].arg.v),
-							transform(node.keywords[i].value, ctx)
-						]
-					});
-				}
-				return {
-					type: "NewExpression",
-					callee: makeVariableName('__pythonRuntime.objects.dict'),
-					arguments: args
-				};
-
-		}
-	}
-
 	var args = transform(node.args, ctx);
 
 	if ( node.keywords.length > 0 ) {
@@ -593,6 +524,9 @@ function transformDel(node, ctx) {
 			}
 		});
 	}
+
+    if (result.length == 1) return ensureStatement(result[0]);
+
 	return ensureStatement({
 		type: "SequenceExpression",
 		expressions: result
@@ -723,15 +657,17 @@ function createForLoop(iident, tident, iter, target, body, ctx) {
 }
 
 function transformFor(node, ctx) {
-	var name = createTempName('idx');
-	var iident = ident(name);
-	var tname = createTempName('target');
-	var tident = {type: "Identifier", name: tname};
+	var target = transform(node.target, ctx);
 	var iter = transform(node.iter, ctx);
 	var body = ensureStatement(transform(node.body, ctx));
 
 	if ( node.orelse && node.orelse.length > 0 ) abort("else: for-else statement unsupported.");
-	return createForLoop(iident, tident, iter, node.target, body, ctx);
+	return {
+		type: "ForOfStatement",
+		left: target,
+		right: iter,
+		body: {type: "BlockStatement", body: body}
+	}
 }
 
 function prepareFunctionBody(node, ctx) {
@@ -747,18 +683,6 @@ function prepareFunctionBody(node, ctx) {
 	};
 	var body = ensureStatement(transform(node.body, nctx));
 	var premble = [];
-
-	if ( ctx.inClass ) {
-		premble.push({
-			"type": "VariableDeclaration",
-			"declarations": [{
-				"type": "VariableDeclarator",
-				"id": ident('self'),
-				"init": {type: "ThisExpression"}
-			}],
-			"kind": "var"
-		});
-	}
 
 	if ( hasAnyArguments ) {
 		
@@ -781,86 +705,15 @@ function prepareFunctionBody(node, ctx) {
 		});
 
 		var main = [];
-		main.push({
-			"type": "VariableDeclaration",
-			"declarations": [{
-				"type": "VariableDeclarator",
-				"id": ident(param0),
-				"init": ternary(ident(hasParams), argNKeywords, {type: "ObjectExpression", properties: []})
-			},{
-				"type": "VariableDeclarator",
-				"id": ident(realArgCount),
-				"init": binOp(argLen, '-', ternary(ident(hasParams), literal(1), literal(0)))
-			}],
-			"kind": "var"
-		});
 
 		for ( var i = 0; i < args.length; ++i ) {
 			var a = node.args.args[i];
 			var didx = i - (node.args.args.length - node.args.defaults.length);
 			var def = didx >= 0 ? transform(node.args.defaults[didx], ctx) : ident('undefined');
-
-			main.push({
-				type: "IfStatement",
-				test: binOp(ident(realArgCount), '<', literal(i+1)),
-				consequent: ensureStatement({
-					type: "AssignmentExpression",
-					operator: "=",
-					left: ident(a.id),
-					right: ternary(
-						binOp(literal(a.id), 'in', ident(param0)),
-						{type: "MemberExpression", object: ident(param0), property: ident(a.id), computed: false},
-						def
-					)
-				})
-			});
 		}
-
-		if ( node.args.vararg ) {
-			main.push({
-				"type": "VariableDeclaration",
-				"declarations": [{
-					"type": "VariableDeclarator",
-					"id": ident(node.args.vararg),
-					"init": {
-						type: "CallExpression",
-						callee: makeVariableName("Array.prototype.slice.call"),
-						arguments: [ident('arguments'), literal(node.args.args.length), hasAnyArguments ? ident(realArgCount) : undefined]
-					}
-				}],
-				"kind": "var"
-			});
-		}
-
-		if ( node.args.kwarg ) {
-			for ( var i = 0; i < node.args.args.length; ++i ) {
-				main.push(ensureStatement({
-					type: "UnaryExpression",
-					operator: "delete",
-					argument: {
-						type: "MemberExpression",
-						object: ident(param0),
-						property: ident(node.args.args[i].id),
-						computed: false
-					}
-				}));
-			}
-			main.push({
-				"type": "VariableDeclaration",
-				"declarations": [{
-					"type": "VariableDeclarator",
-					"id": ident(node.args.kwarg),
-					"init": ident(param0)
-				}],
-				"kind": "var"
-			});
-		}
-
-		premble = premble.concat(main); //TODO: If we dont have defauts, we can guard this with __hasParams	
 	}
 
 
-	body = premble.concat(body);
 	var params = transform(args, ctx);
 	return {
 		premble: premble,
@@ -872,7 +725,6 @@ function prepareFunctionBody(node, ctx) {
 
 function transformFunctionDef(node, ctx) {
 	var data = prepareFunctionBody(node, ctx);
-
 
 
 	if ( ctx.writeTarget ) {
@@ -918,13 +770,12 @@ function transformIfExp(node, ctx) {
     return ternary(transform(node.test, ctx), transform(node.body, ctx), transform(node.orelse, ctx))
 }
 
-
 function transformLambda(node, ctx) {
 	var data = prepareFunctionBody(node, ctx);
 	
 	//TODO: This is pretty sketchy.
 	var last = data.body[data.body.length - 1];
-	data.body[data.body.length - 1] = {type: "ReturnStatement", argument: last.expression};
+	if (last) data.body[data.body.length - 1] = {type: "ReturnStatement", argument: last.expression};
 
 	return {
 		type: "FunctionExpression",
@@ -935,9 +786,8 @@ function transformLambda(node, ctx) {
 
 function transformList(node, ctx) {
 	var call = {
-		type: "CallExpression",
-		callee: makeVariableName("__pythonRuntime.objects.list"),
-		arguments: transform(node.elts, ctx)
+		type: "ArrayExpression",
+		elements: transform(node.elts, ctx)
 	};
 	return call;
 }
@@ -1025,9 +875,9 @@ function transformModule(node, ctx) {
 }
 
 function transformName(node, ctx) {
-	if ( node.id.v === 'True' ) return {type: "Literal", value: true, raw: "true"};
-	if ( node.id.v === 'False' ) return {type: "Literal", value: false, raw: "false"};
-	if ( node.id.v === 'None' ) return {type: "Literal", value: null, raw: "null"};
+	if ( node.id.v === 'True' ) return {type: "BooleanLiteral", value: true, raw: "true"};
+	if ( node.id.v === 'False' ) return {type: "BooleanLiteral", value: false, raw: "false"};
+	if ( node.id.v === 'None' ) return {type: "NullLiteral", value: null, raw: "null"};
 
 	if ( node.id.v === 'random' ) return makeVariableName('__pythonRuntime.imports.random');
 	return ident(node.id);
@@ -1069,17 +919,11 @@ function transformSubscript(node, ctx) {
 	//TODO: Do silly pythonic list offset logic
 	var val = transform(node.value, ctx);
 	if ( node.slice.value ) {
-		var lu = transform(node.slice.value, ctx);
-		lu = {
-			type: "CallExpression",
-			callee: makeVariableName("__pythonRuntime.ops.subscriptIndex"),
-			arguments: [val, lu]
-		};
 		return {
 			type: "MemberExpression",
 			computed: true,
 			object: val,
-			property: lu
+			property: transform(node.slice.value, ctx)
 		};
 	}
 
@@ -1101,22 +945,6 @@ function transformPass(node, ctx) {
 
 function transformUnaryOp(node, ctx) {
 	var argument = transform(node.operand, ctx);
-
-	var fxOps = {
-		"Add": "add",
-		"Mult": "multiply",
-	};
-	var opName = getOpName(node.op);
-
-	if ( opName in fxOps  ) {
-		var call = {
-			type: "CallExpression",
-			callee: makeVariableName("__pythonRuntime.ops." + fxOps[opName]),
-			arguments: [argument]
-		};
-		return call;
-	}
-
 	var operators = {
 		"Not": "!",
 		"USub": "-",
