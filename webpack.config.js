@@ -4,7 +4,7 @@ module.exports = {
 		library: 'filbert',
 		libraryTarget: 'umd',
 		filename: 'skulpty.js',
-		path: './build'
+		path: __dirname + '/build'
 	},
 	entry: './src/index.js'	
 };
